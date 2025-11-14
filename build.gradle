@@ -33,7 +33,14 @@ dependencies {
 	// ✅ Reactor Core (comes transitively with WebFlux, but explicit for clarity)
 	implementation 'io.projectreactor:reactor-core'
 
-	// 🧪 For unit tests
+	// Lombok
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	testCompileOnly 'org.projectlombok:lombok'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // 🧪 For unit tests
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'io.projectreactor:reactor-test'
 }
