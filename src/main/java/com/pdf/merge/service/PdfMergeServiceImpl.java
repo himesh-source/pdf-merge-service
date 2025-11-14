@@ -1,43 +1,36 @@
 package com.pdf.merge.service;
-
-
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.io.MemoryUsageSetting;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
-
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
-
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
-
 import java.io.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+
 @Service
+@Slf4j
 public class PdfMergeServiceImpl implements PdfMergeService{
-
-
     private static final long MAX_SIZE_BYTES = (long) (4.5 * 1024 * 1024); // 4.5 MB
-    private static final double MAX_FILE_SIZE_MB = 4.5;
 
 
     public Mono<Path> mergePdfs(String sourceDir, String outputFilePath) {
         return Mono.fromCallable(() -> {
             Path srcPath = Paths.get(sourceDir);
             if (!Files.exists(srcPath) || !Files.isDirectory(srcPath)) {
+                log.error("Source directory not found: " + sourceDir);
                 throw new IOException("Source directory not found: " + sourceDir);
             }
 
@@ -45,9 +38,10 @@ public class PdfMergeServiceImpl implements PdfMergeService{
                     .filter(f -> f.toString().toLowerCase().endsWith(".pdf"))
                     .map(Path::toFile)
                     .sorted(Comparator.comparing(File::getName))
-                    .collect(Collectors.toList());
+                    .toList();
 
             if (pdfFiles.isEmpty()) {
+                log.error("No PDF files found in source directory.");
                 throw new IOException("No PDF files found in source directory.");
             }
 
@@ -128,8 +122,7 @@ public class PdfMergeServiceImpl implements PdfMergeService{
             merger.mergeDocuments(MemoryUsageSetting.setupMainMemoryOnly());
 
             // Check final size
-            double sizeMB = mergedFile.length() / (1024.0 * 1024.0);
-            if (sizeMB > MAX_FILE_SIZE_MB) {
+            if (mergedFile.length() > MAX_SIZE_BYTES) {
                 List<File> splitFiles = splitLargePdf(mergedFile);
                 return zipSplitFiles(splitFiles);
             }
@@ -152,13 +145,13 @@ public class PdfMergeServiceImpl implements PdfMergeService{
                 // Estimate size if we saved now
                 File tempSplit = File.createTempFile("check-", ".pdf");
                 current.save(tempSplit);
-                double currentSizeMB = tempSplit.length() / (1024.0 * 1024.0);
+                double currentSize = tempSplit.length();
                 tempSplit.delete();
 
                 boolean isLastPage = (i == totalPages - 1);
 
                 // Save this chunk if size exceeds limit or last page
-                if (currentSizeMB >= MAX_FILE_SIZE_MB || isLastPage) {
+                if (currentSize >= MAX_SIZE_BYTES || isLastPage) {
                     File splitFile = File.createTempFile("split-" + fileIndex++ + "-", ".pdf");
                     current.save(splitFile);
                     splitFiles.add(splitFile);
